@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using UnityEngine.InputSystem; // Add this namespace
 
 public class ColorMemoryGame : MonoBehaviour
 {
@@ -17,8 +16,6 @@ public class ColorMemoryGame : MonoBehaviour
     private bool isGameActive = false;
     private bool isGameStarted = false; // Track if the game has started
 
-    private PlayerInput playerInput; // For the new Input System
-
     void Start()
     {
         // Initialize buttons
@@ -28,25 +25,13 @@ public class ColorMemoryGame : MonoBehaviour
             colorButtons[i].onClick.AddListener(() => OnColorButtonClicked(index));
         }
 
-        // Initialize the new Input System
-        playerInput = new PlayerInput();
-        playerInput.Enable();
-        playerInput.Player.Tap.performed += OnTap; // Listen for tap input
-
         StartGame();
     }
 
-    void OnDestroy()
+    void FixedUpdate()
     {
-        // Clean up the input system
-        playerInput.Player.Tap.performed -= OnTap;
-        playerInput.Disable();
-    }
-
-    void OnTap(InputAction.CallbackContext context)
-    {
-        // Start the game if it hasn't started yet
-        if (!isGameStarted)
+        // Check for mouse click or touch input
+        if (!isGameStarted && (Input.GetMouseButtonDown(0) || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)))
         {
             isGameStarted = true;
             StartCoroutine(StartNewRound());
@@ -59,35 +44,48 @@ public class ColorMemoryGame : MonoBehaviour
         scoreText.text = "Score: 0";
         isGameActive = false;
         isGameStarted = false;
+
+        // Disable buttons at the start
+        SetButtonsInteractable(false);
     }
 
     IEnumerator StartNewRound()
     {
+        SetButtonsInteractable(true);
+
         isGameActive = true;
         instructionText.text = "Memorize the sequence!";
         playerSequenceIndex = 0;
         colorSequence.Add(Random.Range(0, colorButtons.Length));
 
-        foreach (int colorIndex in colorSequence)
+        // Use a for loop instead of foreach to avoid modifying the collection while iterating
+        for (int i = 0; i < colorSequence.Count; i++)
         {
+            int colorIndex = colorSequence[i];
             yield return new WaitForSeconds(0.5f);
-            HighlightButton(colorIndex);
-            yield return new WaitForSeconds(0.5f);
+            yield return FlashButton(colorIndex); // Flash the button
         }
 
-        instructionText.text = "Repeat the colors!";
+        instructionText.text = "Repeat the colors";
     }
 
-    void HighlightButton(int index)
+    IEnumerator FlashButton(int index)
     {
-        colorButtons[index].image.color = Color.white; // Highlight color
-        StartCoroutine(ResetButtonColor(index));
-    }
-
-    IEnumerator ResetButtonColor(int index)
-    {
-        yield return new WaitForSeconds(0.5f);
+        // Change the button color to its assigned color
         colorButtons[index].image.color = GetColorByIndex(index);
+        yield return new WaitForSeconds(0.5f); // Wait for 0.5 seconds
+
+        // Change the button color back to white
+        colorButtons[index].image.color = Color.white;
+    }
+
+    void SetButtonsInteractable(bool interactable)
+    {
+        // Enable or disable all buttons
+        foreach (Button button in colorButtons)
+        {
+            button.interactable = interactable;
+        }
     }
 
     Color GetColorByIndex(int index)
@@ -126,8 +124,11 @@ public class ColorMemoryGame : MonoBehaviour
     {
         isGameActive = false;
         isGameStarted = false;
-        instructionText.text = "Game Over! Final Score: " + score + "\nPress anywhere to restart.";
+        instructionText.text = "Game Over! Final Score: " + score + "\nPress anywhere to restart";
         colorSequence.Clear();
         score = 0;
+
+        // Disable buttons when the game is over
+        SetButtonsInteractable(false);
     }
 }
